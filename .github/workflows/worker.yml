@@ -1,0 +1,40 @@
+name: GitCompute Worker
+
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: 'Command to execute'
+        required: true
+        default: 'echo "Hello from GitCompute"'
+      os:
+        description: 'Operating System (ubuntu-latest, windows-latest, macos-latest)'
+        required: true
+        default: 'ubuntu-latest'
+
+jobs:
+  compute:
+    runs-on: ${{ github.event.inputs.os }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Execute Command
+        id: exec
+        shell: bash
+        run: |
+          echo "Starting Execution..."
+          echo "OS: ${{ github.event.inputs.os }}"
+          echo "Command: ${{ github.event.inputs.command }}"
+          
+          # Execute the command and redirect output to a log file
+          ${{ github.event.inputs.command }} > output.log 2>&1
+          
+          echo "Execution Complete."
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: execution-result
+          path: output.log
