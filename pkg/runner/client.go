@@ -3,6 +3,8 @@ package runner
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
 	"time"
 
 	"github.com/google/go-github/v50/github"
@@ -87,4 +89,52 @@ func (c *Client) WaitForRun(ctx context.Context, workflowID string) (*github.Wor
 func (c *Client) GetRunStatus(ctx context.Context, runID int64) (*github.WorkflowRun, error) {
 	run, _, err := c.ghClient.Actions.GetWorkflowRunByID(ctx, c.owner, c.repo, runID)
 	return run, err
+}
+
+func (c *Client) DownloadArtifact(ctx context.Context, runID int64, artifactName, destPath string) error {
+	opts := &github.ListArtifactsOptions{
+		Name: artifactName,
+	}
+	artifacts, _, err := c.ghClient.Actions.ListWorkflowRunArtifacts(ctx, c.owner, c.repo, runID, opts)
+	if err != nil {
+		return fmt.Errorf("failed to list artifacts: %w", err)
+	}
+
+	if len(artifacts.Artifacts) == 0 {
+		return fmt.Errorf("no artifact named '%s' found", artifactName)
+	}
+
+	artifact := artifacts.Artifacts[0]
+	
+	// The DownloadArtifact API returns a redirect URL to the blob storage
+	url, _, err := c.ghClient.Actions.DownloadArtifact(ctx, c.owner, c.repo, artifact.GetID(), true)
+	if err != nil {
+		return fmt.Errorf("failed to get artifact download url: %w", err)
+	}
+
+	// Download the file
+	req, err := http.NewRequestWithContext(ctx, "GET", url.String(), nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to download artifact: status %d", resp.StatusCode)
+	}
+
+	// Create output file
+	out, err := os.Create(destPath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, resp.Body)
+	return err
 }

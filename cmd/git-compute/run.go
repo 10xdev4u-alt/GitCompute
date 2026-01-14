@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/10xdev4u-alt/git-compute/pkg/config"
 	"github.com/10xdev4u-alt/git-compute/pkg/runner"
+	"github.com/10xdev4u-alt/git-compute/pkg/utils"
 )
 
 var (
@@ -76,7 +77,34 @@ Example: git-compute run --cmd "echo Hello" --os ubuntu-latest`,
 				if status == "completed" {
 					fmt.Println("\n🏁 Run completed!")
 					if conclusion == "success" {
-						fmt.Println("🎉 Success! (Artifact download not yet implemented)")
+						fmt.Println("🎉 Success! Downloading results...")
+						
+						zipName := fmt.Sprintf("result-%d.zip", run.GetID())
+						err := client.DownloadArtifact(ctx, run.GetID(), "execution-result", zipName)
+						if err != nil {
+							fmt.Printf("❌ Failed to download artifact: %v\n", err)
+							break
+						}
+						
+						fmt.Printf("📦 Artifact downloaded to %s. Unzipping...\n", zipName)
+						
+						// Unzip to current directory
+						err = utils.Unzip(zipName, ".")
+						if err != nil {
+							fmt.Printf("⚠️ Failed to unzip: %v\n", err)
+						} else {
+							fmt.Println("📂 Results extracted to output.log")
+							
+							// Read and display content
+							content, _ := os.ReadFile("output.log")
+							fmt.Println("\n--- Remote Output ---")
+							fmt.Println(string(content))
+							fmt.Println("---------------------")
+						}
+						
+						// Clean up zip
+						os.Remove(zipName)
+						
 					} else {
 						fmt.Println("❌ Failed.")
 					}
