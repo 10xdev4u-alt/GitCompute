@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/google/go-github/v50/github"
@@ -43,7 +44,7 @@ func (c *Client) TriggerWorkflow(ctx context.Context, workflowID string, inputs 
 		Inputs: inputs,
 	}
 
-	_, _, err := c.ghClient.Actions.CreateWorkflowDispatchEvent(ctx, c.owner, c.repo, workflowID, opts)
+	_, err := c.ghClient.Actions.CreateWorkflowDispatchEventByFileName(ctx, c.owner, c.repo, workflowID, opts)
 	if err != nil {
 		return fmt.Errorf("failed to dispatch workflow: %w", err)
 	}
@@ -92,19 +93,25 @@ func (c *Client) GetRunStatus(ctx context.Context, runID int64) (*github.Workflo
 }
 
 func (c *Client) DownloadArtifact(ctx context.Context, runID int64, artifactName, destPath string) error {
-	opts := &github.ListArtifactsOptions{
-		Name: artifactName,
+	opts := &github.ListOptions{
+		PerPage: 100,
 	}
 	artifacts, _, err := c.ghClient.Actions.ListWorkflowRunArtifacts(ctx, c.owner, c.repo, runID, opts)
 	if err != nil {
 		return fmt.Errorf("failed to list artifacts: %w", err)
 	}
 
-	if len(artifacts.Artifacts) == 0 {
-		return fmt.Errorf("no artifact named '%s' found", artifactName)
+	var artifact *github.Artifact
+	for _, a := range artifacts.Artifacts {
+		if a.GetName() == artifactName {
+			artifact = a
+			break
+		}
 	}
 
-	artifact := artifacts.Artifacts[0]
+	if artifact == nil {
+		return fmt.Errorf("no artifact named '%s' found", artifactName)
+	}
 	
 	// The DownloadArtifact API returns a redirect URL to the blob storage
 	url, _, err := c.ghClient.Actions.DownloadArtifact(ctx, c.owner, c.repo, artifact.GetID(), true)

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/10xdev4u-alt/git-compute/pkg/config"
 	"github.com/10xdev4u-alt/git-compute/pkg/runner"
 	"github.com/10xdev4u-alt/git-compute/pkg/utils"
